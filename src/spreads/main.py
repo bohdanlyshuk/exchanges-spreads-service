@@ -247,7 +247,7 @@ async def get_prices(
         if sym not in cache:
             raise HTTPException(404, f"Symbol {sym!r} not in cache (may not be discovered or first update not done yet)")
         return cache[sym]
-    return sorted(cache.values(), key=lambda r: r.arbitrage.spread_pct_abs, reverse=True)
+    return sorted(cache.values(), key=lambda r: abs(r.arbitrage.spread_pct), reverse=True)
 
 
 @app.get("/v1/spread-history")
@@ -273,7 +273,7 @@ async def get_spread_history(
         return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     series = [
-        {"ts": _ts_iso(r["ts"]), "spread_pct_abs": r["spread_pct_abs"], "net_spread_pct": r["net_spread_pct"]}
+        {"ts": _ts_iso(r["ts"]), "spread_pct": r["spread_pct"], "net_spread_pct": r["net_spread_pct"]}
         for r in rows
     ]
     return {

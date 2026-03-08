@@ -12,7 +12,7 @@ CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS spread_history (
     symbol varchar(32) NOT NULL,
     ts timestamptz NOT NULL,
-    spread_pct_abs numeric(12,6) NOT NULL,
+    spread_pct numeric(12,6) NOT NULL,
     net_spread_pct numeric(12,6) NOT NULL,
     best_bid_ex varchar(16) NOT NULL,
     best_ask_ex varchar(16) NOT NULL
@@ -36,6 +36,15 @@ async def ensure_schema(pool: asyncpg.Pool) -> None:
     async with pool.acquire() as conn:
         await conn.execute(CREATE_TABLE)
         await conn.execute(CREATE_INDEX)
+        # Migrate existing table: spread_pct_abs -> spread_pct
+        has_abs = await conn.fetchval(
+            "SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'spread_history' AND column_name = 'spread_pct_abs'"
+        )
+        has_pct = await conn.fetchval(
+            "SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'spread_history' AND column_name = 'spread_pct'"
+        )
+        if has_abs and not has_pct:
+            await conn.execute("ALTER TABLE spread_history RENAME COLUMN spread_pct_abs TO spread_pct")
 
 
 async def write_spread_history(
@@ -56,7 +65,7 @@ async def write_spread_history(
             continue
         symbols.append(r.symbol)
         ts_list.append(now)
-        spread_list.append(float(r.arbitrage.spread_pct_abs))
+        spread_list.append(float(r.arbitrage.spread_pct))
         net_list.append(float(r.arbitrage.net_spread_pct))
         bid_ex_list.append((r.arbitrage.best_bid.exchange or "")[:16])
         ask_ex_list.append((r.arbitrage.best_ask.exchange or "")[:16])
@@ -65,7 +74,7 @@ async def write_spread_history(
     async with pool.acquire() as conn:
         await conn.execute(
             """
-            INSERT INTO spread_history (symbol, ts, spread_pct_abs, net_spread_pct, best_bid_ex, best_ask_ex)
+            INSERT INTO spread_history (symbol, ts, spread_pct, net_spread_pct, best_bid_ex, best_ask_ex)
             SELECT * FROM unnest($1::varchar[], $2::timestamptz[], $3::numeric[], $4::numeric[], $5::varchar[], $6::varchar[])
             """,
             symbols,
@@ -89,7 +98,7 @@ async def get_spread_history(
         if interval_minutes is None or interval_minutes < 1:
             rows = await conn.fetch(
                 """
-                SELECT ts, spread_pct_abs, net_spread_pct
+                SELECT ts, spread_pct, net_spread_pct
                 FROM spread_history
                 WHERE symbol = $1 AND ts >= $2 AND ts <= $3
                 ORDER BY ts
@@ -98,13 +107,13 @@ async def get_spread_history(
                 from_ts,
                 to_ts,
             )
-            return [{"ts": r["ts"], "spread_pct_abs": float(r["spread_pct_abs"]), "net_spread_pct": float(r["net_spread_pct"])} for r in rows]
+            return [{"ts": r["ts"], "spread_pct": float(r["spread_pct"]), "net_spread_pct": float(r["net_spread_pct"])} for r in rows]
         # Bucket: floor(minute/interval)*interval
         rows = await conn.fetch(
             """
             SELECT
                 date_trunc('hour', ts) + (floor(extract(minute from ts)::numeric / $4) * $4) * interval '1 minute' AS bucket,
-                avg(spread_pct_abs)::numeric AS spread_pct_abs,
+                avg(spread_pct)::numeric AS spread_pct,
                 avg(net_spread_pct)::numeric AS net_spread_pct
             FROM spread_history
             WHERE symbol = $1 AND ts >= $2 AND ts <= $3
@@ -116,4 +125,4 @@ async def get_spread_history(
             to_ts,
             interval_minutes,
         )
-        return [{"ts": r["bucket"], "spread_pct_abs": float(r["spread_pct_abs"]), "net_spread_pct": float(r["net_spread_pct"])} for r in rows]
+        return [{"ts": r["bucket"], "spread_pct": float(r["spread_pct"]), "net_spread_pct": float(r["net_spread_pct"])} for r in rows]

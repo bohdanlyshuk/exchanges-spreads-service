@@ -12,7 +12,7 @@ REST API that aggregates USDT-margined perpetual futures prices from **Bybit**, 
 
 - **Live prices** — In-memory cache updated every `PRICE_UPDATE_INTERVAL` seconds; `GET /v1/prices` does not call exchanges.
 - **Seven exchanges** — Bybit, Binance, MEXC, Gate.io, KuCoin, BingX, Bitget; symbols discovered at startup, merged by `BTCUSDT`-style ticker.
-- **Arbitrage metrics** — Best bid/ask across venues, `spread_pct_abs`, `net_spread_pct` (with funding), `pairwise_spreads` between exchanges.
+- **Arbitrage metrics** — Best bid/ask across venues, `spread_pct` (signed), `net_spread_pct` (with funding), `pairwise_spreads` between exchanges.
 - **Spread history** — Optional PostgreSQL backend for `GET /v1/spread-history` (time series for charts). Disabled when `DATABASE_URL` is unset.
 
 ---
@@ -37,7 +37,7 @@ Requires **uv** for `./run.sh`. Then: `http://localhost:8000/health`, `http://lo
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/health` | Liveness |
-| `GET` | `/v1/prices` | All symbols from cache, sorted by `spread_pct_abs` descending |
+| `GET` | `/v1/prices` | All symbols from cache, sorted by `abs(spread_pct)` descending |
 | `GET` | `/v1/prices?symbol=BTCUSDT` | One symbol |
 | `GET` | `/v1/spread-history?symbol=BTCUSDT&from=...&to=...&interval=5` | Time series (requires `DATABASE_URL`) |
 
@@ -55,7 +55,7 @@ Requires **uv** for `./run.sh`. Then: `http://localhost:8000/health`, `http://lo
   "arbitrage": {
     "best_bid": { "exchange": "bybit",  "price": "96501.9" },
     "best_ask": { "exchange": "binance", "price": "96501.2" },
-    "spread_pct_abs": 0.00073,
+    "spread_pct": 0.00073,
     "net_spread_pct": 0.00083,
     "direction": "LONG on binance @ 96501.2, SHORT on bybit @ 96501.9"
   },
@@ -64,8 +64,8 @@ Requires **uv** for `./run.sh`. Then: `http://localhost:8000/health`, `http://lo
 }
 ```
 
-- **`spread_pct_abs`** — `|best_bid − best_ask| / best_ask × 100`
-- **`net_spread_pct`** — `spread_pct_abs` plus funding adjustment (LONG pays, SHORT receives)
+- **`spread_pct`** — `(best_bid − best_ask) / best_ask × 100` (signed; positive = arbitrage opportunity)
+- **`net_spread_pct`** — `spread_pct` plus funding adjustment (LONG pays, SHORT receives)
 - **`pairwise_spreads`** — `last_A − last_B` for each exchange pair, key `"A_B"` (alphabetical)
 
 ### `GET /v1/spread-history`
@@ -88,8 +88,8 @@ Requires `DATABASE_URL`. Otherwise returns `503` with `{"error": "Spread history
   "to": "2026-01-25T12:00:00Z",
   "interval_minutes": 5,
   "series": [
-    { "ts": "2026-01-24T12:00:00Z", "spread_pct_abs": 0.05, "net_spread_pct": 0.048 },
-    { "ts": "2026-01-24T12:05:00Z", "spread_pct_abs": 0.06, "net_spread_pct": 0.055 }
+    { "ts": "2026-01-24T12:00:00Z", "spread_pct": 0.05, "net_spread_pct": 0.048 },
+    { "ts": "2026-01-24T12:05:00Z", "spread_pct": 0.06, "net_spread_pct": 0.055 }
   ]
 }
 ```

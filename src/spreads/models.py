@@ -20,7 +20,7 @@ class BestPrice(BaseModel):
 class Arbitrage(BaseModel):
     best_bid: BestPrice
     best_ask: BestPrice
-    spread_pct_abs: float
+    spread_pct: float
     net_spread_pct: float
     direction: str
 
