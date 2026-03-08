@@ -24,18 +24,16 @@ services:
   app:
     build: .
     ports:
-      - "8001:8000"
+      - "8002:8000"
     environment:
       PORT: 8000
       HTTP_TIMEOUT: 5
       LOG_LEVEL: INFO
       PRICE_UPDATE_INTERVAL: 1
-      # Optional: comma-separated exchanges, e.g. "bybit,binance,mexc". Empty = all (bybit, binance, mexc, gate, kucoin, bingx, bitget).
-      # ENABLED_EXCHANGES: "bybit,binance,mexc"
+      ENABLED_EXCHANGES: "mexc,binance"
+      CORS_ORIGINS: "*"
       DATABASE_URL: postgresql://spreads:spreads@postgres:5432/spreads
       SPREAD_HISTORY_INTERVAL_SECONDS: 300
-      # CORS: "*" = allow all origins, or comma-separated list, e.g. "https://myapp.com,http://localhost:5173"
-      # CORS_ORIGINS: "*"
     depends_on:
       postgres:
         condition: service_healthy
