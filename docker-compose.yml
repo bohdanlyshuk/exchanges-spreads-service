@@ -34,6 +34,8 @@ services:
       # ENABLED_EXCHANGES: "bybit,binance,mexc"
       DATABASE_URL: postgresql://spreads:spreads@postgres:5432/spreads
       SPREAD_HISTORY_INTERVAL_SECONDS: 300
+      # CORS: "*" = allow all origins, or comma-separated list, e.g. "https://myapp.com,http://localhost:5173"
+      # CORS_ORIGINS: "*"
     depends_on:
       postgres:
         condition: service_healthy

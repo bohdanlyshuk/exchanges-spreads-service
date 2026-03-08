@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from . import db
@@ -214,6 +215,19 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Futures Spreads API", version="0.1.0", lifespan=lifespan)
+
+# CORS: allow frontend origin(s)
+_cors_raw = (settings.cors_origins or "").strip()
+if _cors_raw:
+    _origins = ["*"] if _cors_raw == "*" else [o.strip() for o in _cors_raw.split(",") if o.strip()]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
 setup_middleware(app)
 
 
