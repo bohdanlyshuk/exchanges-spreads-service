@@ -39,6 +39,33 @@ from .utils import to_decimal_str
 
 settings = Settings()
 
+# All supported exchanges: (name, discovery_fn), (name, price_fn). Filter by ENABLED_EXCHANGES.
+_ALL_DISCOVERY = [
+    ("bybit", fetch_all_symbols_bybit),
+    ("binance", fetch_all_symbols_binance),
+    ("mexc", fetch_all_symbols_mexc),
+    ("gate", fetch_all_symbols_gate),
+    ("kucoin", fetch_all_symbols_kucoin),
+    ("bingx", fetch_all_symbols_bingx),
+    ("bitget", fetch_all_symbols_bitget),
+]
+_ALL_BULK_PRICES = [
+    ("bybit", fetch_all_prices_bybit),
+    ("binance", fetch_all_prices_binance),
+    ("mexc", fetch_all_prices_mexc),
+    ("gate", fetch_all_prices_gate),
+    ("kucoin", fetch_all_prices_kucoin),
+    ("bingx", fetch_all_prices_bingx),
+    ("bitget", fetch_all_prices_bitget),
+]
+_enabled = {s.strip().lower() for s in (settings.enabled_exchanges or "").split(",") if s.strip()}
+if _enabled:
+    DISCOVERY_FETCHERS = [(n, f) for n, f in _ALL_DISCOVERY if n in _enabled]
+    BULK_PRICE_FETCHERS = [(n, f) for n, f in _ALL_BULK_PRICES if n in _enabled]
+else:
+    DISCOVERY_FETCHERS = _ALL_DISCOVERY
+    BULK_PRICE_FETCHERS = _ALL_BULK_PRICES
+
 if not logging.root.handlers:
     lvl = getattr(logging, str(settings.log_level).upper(), logging.INFO)
     logging.basicConfig(
@@ -49,26 +76,6 @@ if not logging.root.handlers:
 for _name in ("httpcore", "httpx"):
     logging.getLogger(_name).setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
-
-DISCOVERY_FETCHERS = [
-    ("bybit", fetch_all_symbols_bybit),
-    ("binance", fetch_all_symbols_binance),
-    ("mexc", fetch_all_symbols_mexc),
-    ("gate", fetch_all_symbols_gate),
-    ("kucoin", fetch_all_symbols_kucoin),
-    ("bingx", fetch_all_symbols_bingx),
-    ("bitget", fetch_all_symbols_bitget),
-]
-BULK_PRICE_FETCHERS = [
-    ("bybit", fetch_all_prices_bybit),
-    ("binance", fetch_all_prices_binance),
-    ("mexc", fetch_all_prices_mexc),
-    ("gate", fetch_all_prices_gate),
-    ("kucoin", fetch_all_prices_kucoin),
-    ("bingx", fetch_all_prices_bingx),
-    ("bitget", fetch_all_prices_bitget),
-]
-
 
 def _parse_ts(s: Optional[str], default: datetime) -> datetime:
     if not s or not str(s).strip():
@@ -105,7 +112,7 @@ async def _price_update_loop(app: FastAPI) -> None:
             if not symbols:
                 await asyncio.sleep(interval)
                 continue
-            logger.info("Price update: bulk fetch for %d symbols...", len(symbols))
+            logger.debug("Price update: bulk fetch for %d symbols...", len(symbols))
             t0 = time.perf_counter()
             results = await asyncio.gather(
                 *[f(timeout) for _, f in BULK_PRICE_FETCHERS],
@@ -157,7 +164,7 @@ async def _price_update_loop(app: FastAPI) -> None:
                             logger.exception("write_spread_history failed")
 
             elapsed = time.perf_counter() - t0
-            logger.info("Price update done: %d symbols in %.1fs. Next in %ds.", len(new_cache), elapsed, interval)
+            logger.debug("Price update done: %d symbols in %.1fs. Next in %ds.", len(new_cache), elapsed, interval)
         except asyncio.CancelledError:
             raise
         except Exception as e:
@@ -167,7 +174,10 @@ async def _price_update_loop(app: FastAPI) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Symbol discovery: loading USDT perpetuals from Bybit, Binance, MEXC, Gate, KuCoin, BingX, Bitget...")
+    names = [n for n, _ in DISCOVERY_FETCHERS]
+    if not names:
+        logger.warning("No exchanges enabled. Set ENABLED_EXCHANGES (e.g. bybit,binance,mexc) or leave empty for all.")
+    logger.info("Symbol discovery: loading USDT perpetuals from %s...", ", ".join(names) or "none")
     app.state.symbols = []
     app.state.prices_cache = {}
     pool = None

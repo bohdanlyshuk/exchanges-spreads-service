@@ -29,9 +29,11 @@ services:
       PORT: 8000
       HTTP_TIMEOUT: 5
       LOG_LEVEL: INFO
-      PRICE_UPDATE_INTERVAL: 5
+      PRICE_UPDATE_INTERVAL: 1
+      # Optional: comma-separated exchanges, e.g. "bybit,binance,mexc". Empty = all (bybit, binance, mexc, gate, kucoin, bingx, bitget).
+      # ENABLED_EXCHANGES: "bybit,binance,mexc"
       DATABASE_URL: postgresql://spreads:spreads@postgres:5432/spreads
-      SPREAD_HISTORY_INTERVAL_SECONDS: 3600
+      SPREAD_HISTORY_INTERVAL_SECONDS: 300
     depends_on:
       postgres:
         condition: service_healthy

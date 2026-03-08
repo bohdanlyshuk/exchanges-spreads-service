@@ -14,3 +14,5 @@ class Settings(BaseSettings):
     price_update_interval: int
     database_url: str | None = None
     spread_history_interval_seconds: int | None = None
+    # Comma-separated exchange names to use, e.g. "bybit,binance,mexc". Empty = all.
+    enabled_exchanges: str = ""
