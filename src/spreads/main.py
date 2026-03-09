@@ -106,7 +106,7 @@ def _build_response(symbol: str, prices: list[ExchangePrice], errors: list[dict]
 
 async def _price_update_loop(app: FastAPI) -> None:
     timeout = float(settings.http_timeout)
-    interval = max(1, settings.price_update_interval)
+    interval = max(0.1, settings.price_update_interval)
     while True:
         try:
             symbols = [s for s in (getattr(app.state, "symbols", None) or []) if s and str(s).strip()]
@@ -165,7 +165,7 @@ async def _price_update_loop(app: FastAPI) -> None:
                             logger.exception("write_spread_history failed")
 
             elapsed = time.perf_counter() - t0
-            logger.debug("Price update done: %d symbols in %.1fs. Next in %ds.", len(new_cache), elapsed, interval)
+            logger.info("Price update: %d coins in %.2fs, next in %.1fs", len(new_cache), elapsed, interval)
         except asyncio.CancelledError:
             raise
         except Exception as e:

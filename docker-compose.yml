@@ -29,7 +29,7 @@ services:
       PORT: 8000
       HTTP_TIMEOUT: 5
       LOG_LEVEL: INFO
-      PRICE_UPDATE_INTERVAL: 1
+      PRICE_UPDATE_INTERVAL: 0.1
       ENABLED_EXCHANGES: "mexc,binance"
       CORS_ORIGINS: "*"
       DATABASE_URL: postgresql://spreads:spreads@postgres:5432/spreads

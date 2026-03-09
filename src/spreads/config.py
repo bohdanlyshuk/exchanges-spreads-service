@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     http_timeout: int
     port: int
     log_level: str
-    price_update_interval: int
+    price_update_interval: float = 1.0
     database_url: str | None = None
     spread_history_interval_seconds: int | None = None
     # Comma-separated exchange names to use, e.g. "bybit,binance,mexc". Empty = all.
