@@ -149,10 +149,20 @@ async def _price_update_loop(app: FastAPI) -> None:
                 if len(prices) < 2:
                     continue
                 new_cache[sym] = _build_response(sym, prices, errors)
-            app.state.prices_cache = new_cache
+
+            if new_cache:
+                app.state.prices_cache = new_cache
+            else:
+                exchange_errors = {name: err for name, (err, _) in by_name.items() if err is not None}
+                prev_count = len(getattr(app.state, "prices_cache", None) or {})
+                logger.warning(
+                    "Price update: 0 coins from exchanges (keeping previous %d). Errors: %s",
+                    prev_count,
+                    exchange_errors or "no data from both",
+                )
 
             # Throttle spread_history writes by SPREAD_HISTORY_INTERVAL_SECONDS
-            if settings.database_url and getattr(app.state, "db_pool", None):
+            if new_cache and settings.database_url and getattr(app.state, "db_pool", None):
                 sec = settings.spread_history_interval_seconds
                 if sec is not None and sec >= 1:
                     last_write = getattr(app.state, "last_spread_history_ts", None)
@@ -165,7 +175,7 @@ async def _price_update_loop(app: FastAPI) -> None:
                             logger.exception("write_spread_history failed")
 
             elapsed = time.perf_counter() - t0
-            logger.info("Price update: %d coins in %.2fs, next in %.1fs", len(new_cache), elapsed, interval)
+            logger.info("Price update: %d coins in %.2fs, next in %.1fs", len(new_cache) or len(getattr(app.state, "prices_cache", None) or {}), elapsed, interval)
         except asyncio.CancelledError:
             raise
         except Exception as e:
