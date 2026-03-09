@@ -11,6 +11,7 @@ REST API that aggregates USDT-margined perpetual futures prices from **Bybit**, 
 ## Features
 
 - **Live prices** — In-memory cache updated every `PRICE_UPDATE_INTERVAL` seconds; `GET /v1/prices` does not call exchanges.
+- **WebSocket for Binance (and optional MEXC)** — Binance uses WebSocket by default to avoid REST rate limits (418); MEXC can be switched to WS via `WS_MEXC_ENABLED=true`.
 - **Seven exchanges** — Bybit, Binance, MEXC, Gate.io, KuCoin, BingX, Bitget; symbols discovered at startup, merged by `BTCUSDT`-style ticker.
 - **Arbitrage metrics** — Best bid/ask across venues, `spread_pct` (signed), `net_spread_pct` (with funding), `pairwise_spreads` between exchanges.
 - **Spread history** — Optional PostgreSQL backend for `GET /v1/spread-history` (time series for charts). Disabled when `DATABASE_URL` is unset.
@@ -39,9 +40,14 @@ Requires **uv** for `./run.sh`. Then: `http://localhost:8000/health`, `http://lo
 | `GET` | `/health` | Liveness |
 | `GET` | `/v1/prices` | All symbols from cache, sorted by `abs(spread_pct)` descending |
 | `GET` | `/v1/prices?symbol=BTCUSDT` | One symbol |
+| `WebSocket` | `/v1/ws/prices` | Real-time prices: connect to receive the same list as `GET /v1/prices` pushed on every cache update |
 | `GET` | `/v1/spread-history?symbol=BTCUSDT&from=...&to=...&interval=5` | Time series (requires `DATABASE_URL`) |
 
 **Interactive docs:** `/docs` (Swagger), `/redoc`.
+
+### WebSocket `GET /v1/ws/prices`
+
+Connect to receive the same JSON array as `GET /v1/prices` (list of price objects with `symbol`, `prices`, `arbitrage`, `pairwise_spreads`, `errors`, `updated_at`) pushed in real time whenever the server updates its cache. On connect you get an initial snapshot; then each cache update triggers a new message. Use this for lowest latency instead of polling. Optional: set `WS_BROADCAST_INTERVAL_SEC` (e.g. `0.2`) to throttle broadcast frequency.
 
 ### Example: `GET /v1/prices?symbol=BTCUSDT`
 
@@ -108,8 +114,12 @@ Copy `.env.example` → `.env`. No built-in defaults; all values from env.
 | `PRICE_UPDATE_INTERVAL` | yes | Seconds between full price refresh cycles |
 | `DATABASE_URL` | no | PostgreSQL URL; enables `/v1/spread-history` |
 | `SPREAD_HISTORY_INTERVAL_SECONDS` | no | How often to append a snapshot to DB; only when `DATABASE_URL` is set |
+| `WS_BINANCE_ENABLED` | no | Use WebSocket for Binance (default `true`); avoids 418 rate limit |
+| `WS_MEXC_ENABLED` | no | Use WebSocket for MEXC (default `false`) |
+| `FUNDING_RATE_REFRESH_MIN` | no | Minutes between Binance funding/mark REST refresh (default `10`) |
+| `WS_BROADCAST_INTERVAL_SEC` | no | Min seconds between client WS broadcasts (default `0` = every cache update) |
 
-Symbols are discovered at startup from all seven exchanges; prices are refreshed in a background loop every `PRICE_UPDATE_INTERVAL` seconds.
+Symbols are discovered at startup from all seven exchanges. When WebSocket is enabled for Binance/MEXC, their prices come from WS streams; other exchanges are polled via REST every `PRICE_UPDATE_INTERVAL` seconds. `/health` includes `feeds.binance_ws` and `feeds.mexc_ws` when applicable.
 
 ---
 
